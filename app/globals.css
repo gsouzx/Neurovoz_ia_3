@@ -1,0 +1,409 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Nunito:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================
+   NeuroVoz I.A — Global Design System
+   ========================================= */
+
+@layer base {
+  :root {
+    /* Brand Colors */
+    --neurovoz-white: #FFFFFF;
+    --neurovoz-blue-light: #BEE8FF;
+    --neurovoz-turquoise: #3AB7D6;
+    --neurovoz-green: #84D7C8;
+    --neurovoz-gray: #F5F7F8;
+    --neurovoz-dark: #1A2332;
+
+    /* Shadcn/Radix UI Tokens (Light) */
+    --background: 210 40% 98%;
+    --foreground: 215 30% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 30% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 30% 12%;
+    --primary: 194 66% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 173 46% 67%;
+    --secondary-foreground: 215 30% 12%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 194 66% 92%;
+    --accent-foreground: 194 66% 30%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 194 66% 53%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 215 30% 10%;
+    --foreground: 210 40% 98%;
+    --card: 215 28% 13%;
+    --card-foreground: 210 40% 98%;
+    --popover: 215 28% 13%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 194 66% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 25% 20%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 25% 18%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 215 25% 20%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 25% 20%;
+    --input: 215 25% 20%;
+    --ring: 194 66% 53%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'Nunito', system-ui, sans-serif;
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Nunito', 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+}
+
+@layer components {
+  /* =====================
+     Glassmorphism Cards
+     ===================== */
+  .glass-card {
+    @apply rounded-2xl border border-white/20 backdrop-blur-sm;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 8px 32px rgba(58, 183, 214, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .glass-card-dark {
+    @apply rounded-2xl border border-white/10 backdrop-blur-sm;
+    background: rgba(26, 35, 50, 0.8);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-card-blue {
+    @apply rounded-2xl border border-neurovoz-turquoise/20 backdrop-blur-sm;
+    background: rgba(190, 232, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(58, 183, 214, 0.15);
+  }
+
+  /* =====================
+     Gradient Buttons
+     ===================== */
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white transition-all duration-300;
+    background: linear-gradient(135deg, #3AB7D6 0%, #84D7C8 100%);
+    box-shadow: 0 4px 16px rgba(58, 183, 214, 0.4);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(58, 183, 214, 0.5);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    @apply relative inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-300 border;
+    border-color: rgba(58, 183, 214, 0.4);
+    color: #3AB7D6;
+    background: rgba(58, 183, 214, 0.05);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(58, 183, 214, 0.1);
+    border-color: rgba(58, 183, 214, 0.6);
+    transform: translateY(-1px);
+  }
+
+  .btn-sos {
+    @apply relative inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-4 font-bold text-white text-lg transition-all duration-300;
+    background: linear-gradient(135deg, #F87171 0%, #FB923C 100%);
+    box-shadow: 0 4px 20px rgba(248, 113, 113, 0.5);
+    animation: glow-sos 2s ease-in-out infinite;
+  }
+
+  /* =====================
+     Input Styles
+     ===================== */
+  .input-neurovoz {
+    @apply w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 outline-none;
+    border-color: rgba(58, 183, 214, 0.2);
+    background: rgba(245, 247, 248, 0.8);
+  }
+
+  .input-neurovoz:focus {
+    border-color: #3AB7D6;
+    box-shadow: 0 0 0 3px rgba(58, 183, 214, 0.15);
+    background: white;
+  }
+
+  /* =====================
+     Sidebar Styles
+     ===================== */
+  .sidebar {
+    @apply fixed left-0 top-0 h-full w-64 z-40 border-r;
+    background: linear-gradient(180deg, #1A2332 0%, #243040 100%);
+    border-color: rgba(58, 183, 214, 0.1);
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl mx-2 text-sm font-medium transition-all duration-200 cursor-pointer;
+    color: rgba(155, 189, 212, 0.8);
+  }
+
+  .sidebar-item:hover {
+    @apply bg-white/5;
+    color: #BEE8FF;
+  }
+
+  .sidebar-item.active {
+    background: linear-gradient(135deg, rgba(58, 183, 214, 0.2) 0%, rgba(132, 215, 200, 0.1) 100%);
+    color: #3AB7D6;
+    border: 1px solid rgba(58, 183, 214, 0.2);
+  }
+
+  /* =====================
+     Onboarding Progress
+     ===================== */
+  .step-indicator {
+    @apply flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm transition-all duration-300;
+  }
+
+  .step-indicator.active {
+    background: linear-gradient(135deg, #3AB7D6, #84D7C8);
+    @apply text-white shadow-neurovoz;
+  }
+
+  .step-indicator.completed {
+    background: linear-gradient(135deg, #84D7C8, #3AB7D6);
+    @apply text-white;
+  }
+
+  .step-indicator.pending {
+    @apply bg-gray-100 text-gray-400 border border-gray-200;
+  }
+
+  /* =====================
+     Chat Bubbles
+     ===================== */
+  .bubble-user {
+    @apply rounded-2xl rounded-br-sm px-4 py-3 text-sm max-w-xs text-white ml-auto;
+    background: linear-gradient(135deg, #3AB7D6 0%, #84D7C8 100%);
+  }
+
+  .bubble-ai {
+    @apply rounded-2xl rounded-bl-sm px-4 py-3 text-sm max-w-sm;
+    background: white;
+    border: 1px solid rgba(58, 183, 214, 0.15);
+    box-shadow: 0 2px 12px rgba(58, 183, 214, 0.08);
+  }
+
+  /* =====================
+     Emotion Cards
+     ===================== */
+  .emotion-card {
+    @apply flex flex-col items-center gap-2 p-4 rounded-2xl cursor-pointer transition-all duration-200 border-2;
+    border-color: transparent;
+    background: white;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+
+  .emotion-card:hover {
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 8px 24px rgba(58, 183, 214, 0.2);
+    border-color: rgba(58, 183, 214, 0.3);
+  }
+
+  .emotion-card.selected {
+    border-color: #3AB7D6;
+    background: linear-gradient(135deg, rgba(190, 232, 255, 0.5) 0%, rgba(132, 215, 200, 0.3) 100%);
+    transform: scale(1.05);
+  }
+
+  /* =====================
+     Breathing Circle (SOS)
+     ===================== */
+  .breathing-circle {
+    @apply rounded-full flex items-center justify-center;
+    background: radial-gradient(circle, rgba(58, 183, 214, 0.8) 0%, rgba(132, 215, 200, 0.4) 60%, transparent 100%);
+    transition: all 4s ease-in-out;
+  }
+
+  /* =====================
+     Progress Bar
+     ===================== */
+  .progress-neurovoz {
+    @apply rounded-full overflow-hidden;
+    background: rgba(58, 183, 214, 0.1);
+    height: 8px;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-500;
+    background: linear-gradient(90deg, #3AB7D6 0%, #84D7C8 100%);
+  }
+
+  /* =====================
+     Scrollbar
+     ===================== */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full;
+    background: rgba(58, 183, 214, 0.3);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(58, 183, 214, 0.5);
+  }
+
+  /* =====================
+     Loading Shimmer
+     ===================== */
+  .shimmer {
+    background: linear-gradient(90deg, #f5f7f8 0%, #e8f4f8 50%, #f5f7f8 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+  }
+
+  /* =====================
+     Gradient Text
+     ===================== */
+  .gradient-text {
+    background: linear-gradient(135deg, #3AB7D6 0%, #84D7C8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-warm {
+    background: linear-gradient(135deg, #FB923C 0%, #F472B6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* =====================
+     Floating Animation
+     ===================== */
+  .float-animation {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* =====================
+     Notification Badge
+     ===================== */
+  .badge-neurovoz {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    background: linear-gradient(135deg, rgba(58, 183, 214, 0.15), rgba(132, 215, 200, 0.15));
+    color: #3AB7D6;
+    border: 1px solid rgba(58, 183, 214, 0.3);
+  }
+
+  /* =====================
+     Landing Hero Background
+     ===================== */
+  .hero-bg {
+    background: linear-gradient(135deg, #f0faff 0%, #e8f8f5 50%, #f5f7f8 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 60%;
+    height: 120%;
+    background: radial-gradient(ellipse, rgba(58, 183, 214, 0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-bg::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 50%;
+    height: 80%;
+    background: radial-gradient(ellipse, rgba(132, 215, 200, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* =====================
+     Dashboard Grid
+     ===================== */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+
+  /* =====================
+     Feature Tag
+     ===================== */
+  .feature-tag {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+    background: rgba(58, 183, 214, 0.1);
+    color: #2a9ab8;
+    border: 1px solid rgba(58, 183, 214, 0.2);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* SOS glow animation */
+  @keyframes glow-sos {
+    0%, 100% {
+      box-shadow: 0 4px 20px rgba(248, 113, 113, 0.4);
+    }
+    50% {
+      box-shadow: 0 4px 40px rgba(248, 113, 113, 0.7);
+    }
+  }
+}
