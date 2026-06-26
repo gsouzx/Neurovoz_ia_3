@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send,
@@ -20,10 +20,12 @@ import {
   X,
   Lock,
   PhoneOff,
+  Square,
 } from 'lucide-react'
 import { useAppStore, EmotionType } from '@/lib/store'
 import { generateAIResponse } from '@/lib/ai'
 import { formatTime } from '@/lib/utils'
+import { useSpeech, WaveMode } from '@/hooks/useSpeech'
 
 const QUICK_REPLIES = [
   'Hoje estou feliz! 😊',
@@ -52,36 +54,71 @@ const VOICES = [
 
 const FREE_VOICES = VOICES.filter((v) => v.type === 'free')
 
-// ─── Wave Visualizer ───────────────────────────────────────────────────────────
+// ─── Memoized single bar (prevents re-renders on amplitude updates) ──────────
 
-function VoiceWave({ phase }: { phase: 'listening' | 'speaking' }) {
+const Bar = memo(function Bar({
+  maxH,
+  speed,
+  delay,
+  alpha,
+  colorRgb,
+}: {
+  maxH: number
+  speed: number
+  delay: number
+  alpha: number
+  colorRgb: string
+}) {
+  return (
+    <motion.div
+      className="rounded-full flex-shrink-0"
+      style={{ width: 3, background: `rgba(${colorRgb},${alpha})` }}
+      animate={{ height: [maxH * 0.08, maxH, maxH * 0.08] }}
+      transition={{ duration: speed, repeat: Infinity, delay, ease: 'easeInOut' }}
+    />
+  )
+})
+
+// ─── Wave Visualizer ──────────────────────────────────────────────────────────
+
+function VoiceWave({ waveMode, amplitude }: { waveMode: WaveMode; amplitude: number }) {
   const SIDE = 30
+  const leftRef = useRef<HTMLDivElement>(null)
+  const rightRef = useRef<HTMLDivElement>(null)
 
-  const barProps = (distFromCenter: number) => {
-    const maxH = Math.max(8, 108 - distFromCenter * 3.2)
-    const speed = phase === 'speaking'
-      ? 0.38 + (distFromCenter % 6) * 0.055
-      : 1.9 + (distFromCenter % 5) * 0.22
-    const delay = distFromCenter * 0.038
-    const alpha = Math.max(0.12, 1 - (distFromCenter / SIDE) * 0.72)
-    return { maxH, speed, delay, alpha }
+  // CSS transform for amplitude — bypasses React re-renders for bar heights
+  useEffect(() => {
+    const scale = waveMode === 'listening' ? Math.max(0.12, amplitude * 0.9 + 0.1) : 1
+    const t = `scaleY(${scale})`
+    if (leftRef.current) leftRef.current.style.transform = t
+    if (rightRef.current) rightRef.current.style.transform = t
+  }, [amplitude, waveMode])
+
+  // Bar props depend only on waveMode (not amplitude) — stable across amplitude updates
+  const barProps = (i: number) => {
+    const baseH = Math.max(8, 108 - i * 3.2)
+    if (waveMode === 'idle') return { maxH: baseH * 0.14, speed: 4 + (i % 5) * 0.4, delay: i * 0.038, alpha: Math.max(0.08, 1 - (i / SIDE) * 0.72) * 0.4 }
+    if (waveMode === 'listening') return { maxH: baseH, speed: 1.2 + (i % 5) * 0.15, delay: i * 0.038, alpha: Math.max(0.12, 1 - (i / SIDE) * 0.72) }
+    // speaking
+    return { maxH: baseH, speed: 0.38 + (i % 6) * 0.055, delay: i * 0.038, alpha: Math.max(0.12, 1 - (i / SIDE) * 0.72) }
   }
+
+  const orbDuration = (i: number) =>
+    waveMode === 'speaking' ? 0.85 + i * 0.18 : waveMode === 'listening' ? 1.8 + i * 0.4 : 3.5 + i * 0.7
+  const orbDelay = (i: number) =>
+    waveMode === 'speaking' ? i * 0.26 : i * 0.65
 
   return (
     <div className="flex items-center justify-center w-full px-6 select-none">
-      {/* Left bars — flex-row-reverse puts i=0 (tallest) closest to orb */}
-      <div className="flex items-center gap-[2.5px] flex-row-reverse">
+      {/* Left bars — flex-row-reverse keeps i=0 (tallest) nearest to orb */}
+      <div
+        ref={leftRef}
+        className="flex items-center gap-[2.5px] flex-row-reverse"
+        style={{ transformOrigin: 'center center' }}
+      >
         {Array.from({ length: SIDE }).map((_, i) => {
           const { maxH, speed, delay, alpha } = barProps(i)
-          return (
-            <motion.div
-              key={`L${i}`}
-              className="rounded-full flex-shrink-0"
-              style={{ width: 3, background: `rgba(58,183,214,${alpha})` }}
-              animate={{ height: [maxH * 0.1, maxH, maxH * 0.1], opacity: [alpha * 0.35, alpha, alpha * 0.35] }}
-              transition={{ duration: speed, repeat: Infinity, delay, ease: 'easeInOut' }}
-            />
-          )
+          return <Bar key={`L${i}`} maxH={maxH} speed={speed} delay={delay} alpha={alpha} colorRgb="58,183,214" />
         })}
       </div>
 
@@ -93,15 +130,9 @@ function VoiceWave({ phase }: { phase: 'listening' | 'speaking' }) {
             className="absolute inset-0 rounded-full"
             style={{ border: '1px solid rgba(58,183,214,0.35)' }}
             animate={{ scale: [1, 2.4 + i * 0.55], opacity: [0.55, 0] }}
-            transition={{
-              duration: phase === 'speaking' ? 0.85 + i * 0.18 : 2.4 + i * 0.5,
-              repeat: Infinity,
-              delay: i * (phase === 'speaking' ? 0.26 : 0.72),
-              ease: 'easeOut',
-            }}
+            transition={{ duration: orbDuration(i), repeat: Infinity, delay: orbDelay(i), ease: 'easeOut' }}
           />
         ))}
-        {/* Sphere body */}
         <div
           className="absolute inset-0 rounded-full"
           style={{
@@ -109,7 +140,6 @@ function VoiceWave({ phase }: { phase: 'listening' | 'speaking' }) {
             boxShadow: '0 0 55px rgba(58,183,214,0.75), 0 0 110px rgba(58,183,214,0.32), inset 0 2px 24px rgba(255,255,255,0.18)',
           }}
         />
-        {/* Specular highlight */}
         <div
           className="absolute rounded-full"
           style={{ top: '17%', left: '19%', width: '44%', height: '38%', background: 'radial-gradient(circle, rgba(255,255,255,0.48) 0%, transparent 68%)' }}
@@ -117,18 +147,14 @@ function VoiceWave({ phase }: { phase: 'listening' | 'speaking' }) {
       </div>
 
       {/* Right bars */}
-      <div className="flex items-center gap-[2.5px]">
+      <div
+        ref={rightRef}
+        className="flex items-center gap-[2.5px]"
+        style={{ transformOrigin: 'center center' }}
+      >
         {Array.from({ length: SIDE }).map((_, i) => {
           const { maxH, speed, delay, alpha } = barProps(i)
-          return (
-            <motion.div
-              key={`R${i}`}
-              className="rounded-full flex-shrink-0"
-              style={{ width: 3, background: `rgba(132,215,200,${alpha})` }}
-              animate={{ height: [maxH * 0.1, maxH, maxH * 0.1], opacity: [alpha * 0.35, alpha, alpha * 0.35] }}
-              transition={{ duration: speed, repeat: Infinity, delay, ease: 'easeInOut' }}
-            />
-          )
+          return <Bar key={`R${i}`} maxH={maxH} speed={speed} delay={delay} alpha={alpha} colorRgb="132,215,200" />
         })}
       </div>
     </div>
@@ -166,21 +192,17 @@ function TypingIndicator() {
 export default function ChatPage() {
   const { child, messages, addMessage, clearMessages, isVoiceModeActive, setIsVoiceModeActive } = useAppStore()
 
-  // Text chat state
+  // Text chat
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [isListening] = useState(false)
   const [detectedEmotion, setDetectedEmotion] = useState<EmotionType | null>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
   const [attachedFile, setAttachedFile] = useState<File | null>(null)
   const [attachedPhoto, setAttachedPhoto] = useState<File | null>(null)
 
-  // Voice carousel state (pre-session)
+  // Voice carousel (pre-session selector)
   const [isVoiceCarouselOpen, setIsVoiceCarouselOpen] = useState(false)
   const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(0)
-
-  // Voice session state
-  const [voicePhase, setVoicePhase] = useState<'listening' | 'speaking'>('listening')
   const [sessionVoiceIndex, setSessionVoiceIndex] = useState(0)
 
   // Refs
@@ -191,6 +213,41 @@ export default function ChatPage() {
   const photoInputRef = useRef<HTMLInputElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const prevLoadingRef = useRef(false)
+  const isLoadingRef = useRef(false)
+
+  // ── Voice send — ref pattern avoids stale closure in useSpeech callback ──
+  const voiceSendRef = useRef<(text: string) => void>(() => {})
+
+  const { startListening, stopListening, speak, cancelSpeech, waveMode, amplitude, transcript, isListening, isSpeaking, isSupported } =
+    useSpeech({ onTranscriptReady: (text) => voiceSendRef.current(text) })
+
+  // Keep voiceSendRef always pointing to the latest implementation
+  voiceSendRef.current = async (text: string) => {
+    if (!text.trim() || isLoadingRef.current) return
+    isLoadingRef.current = true
+    setIsLoading(true)
+    setDetectedEmotion(null)
+    addMessage({ role: 'user', content: text })
+    try {
+      const { content, emotionDetected } = await generateAIResponse(
+        text,
+        child!,
+        messages.map((m) => ({ role: m.role, content: m.content }))
+      )
+      addMessage({ role: 'assistant', content, emotionDetected })
+      if (emotionDetected) setDetectedEmotion(emotionDetected)
+      speak(content)
+    } catch {
+      const err = 'Desculpe, tive um probleminha para responder. Pode tentar novamente? 😊'
+      addMessage({ role: 'assistant', content: err })
+      speak(err)
+    } finally {
+      setIsLoading(false)
+      isLoadingRef.current = false
+    }
+  }
+
+  // ── Scroll helpers ────────────────────────────────────────────────────────
 
   const scrollToBottom = (smooth = true) =>
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
@@ -203,11 +260,8 @@ export default function ChatPage() {
     prevLoadingRef.current = isLoading
   }, [isLoading])
 
-  // Stop audio when voice mode ends
   useEffect(() => {
-    if (!isVoiceModeActive && !isVoiceCarouselOpen) {
-      audioRef.current?.pause()
-    }
+    if (!isVoiceModeActive && !isVoiceCarouselOpen) audioRef.current?.pause()
   }, [isVoiceModeActive, isVoiceCarouselOpen])
 
   const handleScroll = () => {
@@ -215,6 +269,8 @@ export default function ChatPage() {
     const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
     setShowScrollDown(scrollHeight - scrollTop - clientHeight > 100)
   }
+
+  // ── Text send ─────────────────────────────────────────────────────────────
 
   const handleSend = async (text?: string) => {
     const message = (text || input).trim()
@@ -226,7 +282,8 @@ export default function ChatPage() {
     setDetectedEmotion(null)
     try {
       const { content, emotionDetected } = await generateAIResponse(
-        message, child!,
+        message,
+        child!,
         messages.map((m) => ({ role: m.role, content: m.content }))
       )
       addMessage({ role: 'assistant', content, emotionDetected })
@@ -242,11 +299,11 @@ export default function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
-  // ── Voice carousel helpers ──────────────────────────────────────────────────
+  // ── Voice carousel helpers ────────────────────────────────────────────────
 
   const playPreview = (index: number) => {
     audioRef.current?.pause()
-    if (audioRef.current) { audioRef.current.currentTime = 0 }
+    if (audioRef.current) audioRef.current.currentTime = 0
     const voice = VOICES[index]
     if (voice.type === 'premium') return
     audioRef.current = new Audio(voice.preview)
@@ -278,23 +335,27 @@ export default function ChatPage() {
     audioRef.current?.pause()
     setSessionVoiceIndex(FREE_VOICES.indexOf(voice))
     setIsVoiceCarouselOpen(false)
-    setVoicePhase('listening')
     setIsVoiceModeActive(true)
+    // Auto-start listening when session begins
+    startListening()
   }
 
-  const handleEndVoiceSession = () => {
+  const handleEndVoiceSession = useCallback(() => {
+    stopListening()
+    cancelSpeech()
     setIsVoiceModeActive(false)
-    setVoicePhase('listening')
-  }
+  }, [stopListening, cancelSpeech, setIsVoiceModeActive])
 
   const switchSessionVoice = (idx: number) => setSessionVoiceIndex(idx)
 
   const selectedCarouselVoice = VOICES[selectedVoiceIndex]
   const isPremiumSelected = selectedCarouselVoice.type === 'premium'
 
-  // ── Voice session full-screen UI ────────────────────────────────────────────
+  // ── Voice session full-screen UI ──────────────────────────────────────────
 
   if (isVoiceModeActive) {
+    const micLabel = isSpeaking ? 'NeuroVoZ falando' : isListening ? 'Escutando...' : 'Pausado'
+
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -304,12 +365,12 @@ export default function ChatPage() {
         className="fixed inset-0 z-30 flex flex-col items-center justify-between overflow-hidden"
         style={{ background: 'linear-gradient(180deg, #0A0F1E 0%, #0D1628 55%, #0A1530 100%)' }}
       >
-        {/* Top section */}
+        {/* Title */}
         <div className="flex flex-col items-center pt-16 pb-4 px-6 text-center">
           <motion.h1
             initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
+            transition={{ delay: 0.2 }}
             className="text-white font-display font-black text-3xl md:text-4xl leading-tight mb-2"
           >
             Modo Conversação por Voz Real
@@ -317,31 +378,47 @@ export default function ChatPage() {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.35, duration: 0.5 }}
+            transition={{ delay: 0.35 }}
             className="text-white/40 text-sm"
           >
             NeuroVoZ e {FREE_VOICES[sessionVoiceIndex].subtitle}: Conversando em tempo real
           </motion.p>
         </div>
 
-        {/* Wave visualization — fills available center space */}
+        {/* Wave visualization */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="flex-1 flex items-center w-full"
         >
-          <VoiceWave phase={voicePhase} />
+          <VoiceWave waveMode={waveMode} amplitude={amplitude} />
         </motion.div>
+
+        {/* Transcript feedback */}
+        <AnimatePresence>
+          {transcript && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="px-6 py-2 mx-auto max-w-md text-center"
+            >
+              <p className="text-white/60 text-sm italic">"{transcript}"</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Status text */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="text-white/50 text-sm text-center px-6 mb-6"
+          className="text-white/50 text-sm text-center px-6 mb-4"
         >
-          Fale à vontade! Sua voz está sendo ouvida agora!{' '}
+          {isLoading
+            ? 'NeuroVoZ está pensando...'
+            : 'Fale à vontade! Sua voz está sendo ouvida agora!'}{' '}
           <span className="text-red-400">Toque o SOS se precisar.</span>
         </motion.p>
 
@@ -383,7 +460,7 @@ export default function ChatPage() {
           transition={{ delay: 0.6 }}
           className="flex items-center gap-4 mb-10"
         >
-          {/* Mic / status pill */}
+          {/* Mic status pill */}
           <div
             className="flex items-center gap-3 rounded-2xl px-5 py-3"
             style={{
@@ -392,39 +469,52 @@ export default function ChatPage() {
               backdropFilter: 'blur(12px)',
             }}
           >
-            {/* Glowing mic button */}
+            {/* Mic toggle button */}
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={() => setVoicePhase((p) => p === 'listening' ? 'speaking' : 'listening')}
+              onClick={() => isListening ? stopListening() : startListening()}
               className="w-12 h-12 rounded-full flex items-center justify-center relative"
               style={{
-                background: 'linear-gradient(135deg, #3AB7D6, #84D7C8)',
-                boxShadow: '0 0 24px rgba(58,183,214,0.6)',
+                background: isSpeaking
+                  ? 'linear-gradient(135deg, #8B6FE8, #C084FC)'
+                  : isListening
+                  ? 'linear-gradient(135deg, #3AB7D6, #84D7C8)'
+                  : 'rgba(255,255,255,0.15)',
+                boxShadow: isListening && !isSpeaking
+                  ? '0 0 24px rgba(58,183,214,0.6)'
+                  : isSpeaking
+                  ? '0 0 24px rgba(139,111,232,0.6)'
+                  : 'none',
               }}
-              animate={{ boxShadow: voicePhase === 'listening'
-                ? ['0 0 16px rgba(58,183,214,0.5)', '0 0 32px rgba(58,183,214,0.9)', '0 0 16px rgba(58,183,214,0.5)']
-                : '0 0 16px rgba(58,183,214,0.4)'
-              }}
+              animate={isListening && !isSpeaking
+                ? { boxShadow: ['0 0 16px rgba(58,183,214,0.5)', '0 0 32px rgba(58,183,214,0.9)', '0 0 16px rgba(58,183,214,0.5)'] }
+                : {}
+              }
               transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+              title={isListening ? 'Pausar microfone' : 'Ativar microfone'}
+              disabled={!isSupported}
             >
-              <Mic size={20} color="white" />
+              {isSpeaking
+                ? <Volume2 size={20} color="white" />
+                : isListening
+                ? <Mic size={20} color="white" />
+                : <MicOff size={20} color="rgba(255,255,255,0.6)" />
+              }
             </motion.button>
 
-            <span className="text-white font-semibold text-sm">
-              {voicePhase === 'listening' ? 'Escutando' : 'NeuroVoZ falando'}
-            </span>
+            <span className="text-white font-semibold text-sm min-w-[130px]">{micLabel}</span>
+
+            {isLoading && (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white/80 rounded-full animate-spin" />
+            )}
 
             <div className="w-px h-5 bg-white/20" />
 
             {/* Inline SOS */}
             <button
               className="text-xs font-bold px-3 py-1.5 rounded-xl transition-all hover:scale-105"
-              style={{
-                background: 'rgba(248,113,113,0.18)',
-                color: '#F87171',
-                border: '1px solid rgba(248,113,113,0.3)',
-              }}
-              onClick={() => window.location.href = '/dashboard/sos'}
+              style={{ background: 'rgba(248,113,113,0.18)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }}
+              onClick={() => { window.location.href = '/dashboard/sos' }}
             >
               SOS
             </button>
@@ -436,10 +526,7 @@ export default function ChatPage() {
             whileTap={{ scale: 0.95 }}
             onClick={handleEndVoiceSession}
             className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
-            style={{
-              background: 'rgba(248,113,113,0.15)',
-              border: '1px solid rgba(248,113,113,0.3)',
-            }}
+            style={{ background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)' }}
             title="Encerrar modo voz"
           >
             <PhoneOff size={18} className="text-red-400" />
@@ -454,20 +541,8 @@ export default function ChatPage() {
   return (
     <div className="max-w-4xl mx-auto h-full flex flex-col">
       {/* Hidden file inputs */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        accept=".pdf,.doc,.docx,.txt,.zip,.mp3,.mp4"
-        onChange={(e) => setAttachedFile(e.target.files?.[0] || null)}
-      />
-      <input
-        ref={photoInputRef}
-        type="file"
-        className="hidden"
-        accept="image/*"
-        onChange={(e) => setAttachedPhoto(e.target.files?.[0] || null)}
-      />
+      <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.txt,.zip,.mp3,.mp4" onChange={(e) => setAttachedFile(e.target.files?.[0] || null)} />
+      <input ref={photoInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => setAttachedPhoto(e.target.files?.[0] || null)} />
 
       {/* Header */}
       <motion.div
@@ -571,7 +646,6 @@ export default function ChatPage() {
               <h2 className="text-white font-bold text-lg mb-1">Escolha uma Voz</h2>
               <p className="text-white/40 text-xs mb-8">Navegue e ouça o preview antes de iniciar</p>
 
-              {/* Carousel */}
               <div className="flex items-center gap-6 mb-8">
                 <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigateCarousel('prev')}
                   className="p-3 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-all">
@@ -591,12 +665,8 @@ export default function ChatPage() {
                       <div
                         className="w-24 h-24 rounded-3xl flex items-center justify-center text-4xl relative"
                         style={{
-                          background: isPremiumSelected
-                            ? 'linear-gradient(135deg, #7C3AED, #C084FC)'
-                            : 'linear-gradient(135deg, #3AB7D6, #84D7C8)',
-                          boxShadow: isPremiumSelected
-                            ? '0 8px 32px rgba(124,58,237,0.4)'
-                            : '0 8px 32px rgba(58,183,214,0.4)',
+                          background: isPremiumSelected ? 'linear-gradient(135deg, #7C3AED, #C084FC)' : 'linear-gradient(135deg, #3AB7D6, #84D7C8)',
+                          boxShadow: isPremiumSelected ? '0 8px 32px rgba(124,58,237,0.4)' : '0 8px 32px rgba(58,183,214,0.4)',
                         }}
                       >
                         {selectedCarouselVoice.emoji}
@@ -644,18 +714,13 @@ export default function ChatPage() {
                 ))}
               </div>
 
-              {/* Action button */}
               <motion.button
                 whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                 onClick={handleStartVoiceChat}
                 className="px-8 py-3.5 rounded-2xl font-bold text-white text-sm"
                 style={{
-                  background: isPremiumSelected
-                    ? 'linear-gradient(135deg, #7C3AED, #C084FC)'
-                    : 'linear-gradient(135deg, #3AB7D6, #84D7C8)',
-                  boxShadow: isPremiumSelected
-                    ? '0 8px 24px rgba(124,58,237,0.4)'
-                    : '0 8px 24px rgba(58,183,214,0.35)',
+                  background: isPremiumSelected ? 'linear-gradient(135deg, #7C3AED, #C084FC)' : 'linear-gradient(135deg, #3AB7D6, #84D7C8)',
+                  boxShadow: isPremiumSelected ? '0 8px 24px rgba(124,58,237,0.4)' : '0 8px 24px rgba(58,183,214,0.35)',
                 }}
               >
                 {isPremiumSelected ? (
@@ -809,23 +874,18 @@ export default function ChatPage() {
                 <Image size={18} className={attachedPhoto ? 'text-neurovoz-turquoise' : 'text-neurovoz-dark/40'} />
               </button>
 
-              {/* Mic button — opens carousel */}
+              {/* Mic — opens voice carousel */}
               <motion.button
                 id="voice-btn"
                 whileTap={{ scale: 0.9 }}
                 onClick={openCarousel}
-                className={`p-2 rounded-xl transition-all ${isListening ? 'text-white' : 'hover:bg-white/80'}`}
-                style={{ background: isListening ? 'linear-gradient(135deg, #F87171, #FB923C)' : 'transparent' }}
-                animate={isListening ? { scale: [1, 1.1, 1] } : {}}
-                transition={isListening ? { duration: 1, repeat: Infinity } : {}}
+                className="p-2 rounded-xl hover:bg-white/80 transition-all"
+                title={isSupported ? 'Iniciar chat de voz' : 'Voz não suportada neste navegador'}
               >
-                {isListening
-                  ? <MicOff size={18} className="text-white" />
-                  : <Mic size={18} className="text-neurovoz-dark/40" />
-                }
+                <Mic size={18} className={isSupported ? 'text-neurovoz-dark/40' : 'text-neurovoz-dark/20'} />
               </motion.button>
 
-              {/* Send button */}
+              {/* Send */}
               <motion.button
                 id="send-btn"
                 whileHover={{ scale: 1.05 }}
