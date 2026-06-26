@@ -80,6 +80,7 @@ interface AppState {
   routine: RoutineItem[]
   messages: Message[]
   geminiApiKey: string
+  isVoiceModeActive: boolean
 
   // Actions
   setGuardian: (guardian: Guardian) => void
@@ -94,6 +95,7 @@ interface AppState {
   toggleRoutineItem: (itemId: string) => void
   login: () => void
   logout: () => void
+  setIsVoiceModeActive: (val: boolean) => void
 }
 
 // ---- Default Data ----
@@ -142,7 +144,7 @@ const defaultChild: Child = {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       isAuthenticated: false,
       guardian: null,
       child: defaultChild,
@@ -160,6 +162,7 @@ export const useAppStore = create<AppState>()(
         },
       ],
       geminiApiKey: '',
+      isVoiceModeActive: false,
 
       setGuardian: (guardian) => set({ guardian }),
       setChild: (child) => set((state) => ({ child: state.child ? { ...state.child, ...child } as Child : null })),
@@ -203,6 +206,8 @@ export const useAppStore = create<AppState>()(
             r.id === itemId ? { ...r, completed: !r.completed } : r
           ),
         })),
+
+      setIsVoiceModeActive: (val: boolean): void => { set({ isVoiceModeActive: val }) },
 
       login: () => set({ isAuthenticated: true }),
       logout: () =>

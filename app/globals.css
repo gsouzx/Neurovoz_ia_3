@@ -166,9 +166,10 @@
      Sidebar Styles
      ===================== */
   .sidebar {
-    @apply fixed left-0 top-0 h-full w-64 z-40 border-r;
+    @apply h-full border-r;
     background: linear-gradient(180deg, #1A2332 0%, #243040 100%);
     border-color: rgba(58, 183, 214, 0.1);
+    flex-shrink: 0;
   }
 
   .sidebar-item {

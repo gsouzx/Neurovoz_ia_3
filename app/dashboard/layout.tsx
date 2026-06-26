@@ -19,7 +19,7 @@ import {
   Bell,
   ChevronRight,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '@/lib/store'
 import { getGreeting } from '@/lib/utils'
 
@@ -36,8 +36,14 @@ const NAV_ITEMS = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { child, guardian, logout } = useAppStore()
+  const { child, guardian, logout, isVoiceModeActive } = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    setIsSidebarCollapsed(isVoiceModeActive)
+    if (isVoiceModeActive) setMobileOpen(false)
+  }, [isVoiceModeActive])
 
   const handleLogout = () => {
     logout()
@@ -136,15 +142,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   )
 
   return (
-    <div className="min-h-screen bg-neurovoz-gray flex">
-      {/* Desktop Sidebar */}
-      <aside className="sidebar hidden lg:flex flex-col w-64">
+    <div className="h-screen bg-neurovoz-gray flex overflow-hidden">
+      {/* Desktop Sidebar — collapses when voice mode is active */}
+      <aside
+        className="sidebar hidden lg:flex flex-col overflow-hidden"
+        style={{
+          width: isSidebarCollapsed ? 0 : 256,
+          transition: 'width 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
+          minWidth: 0,
+        }}
+      >
         <SidebarContent />
       </aside>
 
       {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
-        {mobileOpen && (
+        {mobileOpen && !isVoiceModeActive && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -174,68 +187,113 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:ml-64 min-w-0">
-        {/* Top Bar */}
-        <header
-          className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 border-b"
-          style={{
-            background: 'rgba(245,247,248,0.95)',
-            backdropFilter: 'blur(12px)',
-            borderColor: 'rgba(58,183,214,0.1)',
-          }}
-        >
-          <div className="flex items-center gap-3">
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 rounded-xl hover:bg-white/80 transition-colors"
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-[450ms] ease-[cubic-bezier(0.4,0,0.2,1)]">
+        {/* Top Bar — hidden during voice mode */}
+        <AnimatePresence>
+          {!isVoiceModeActive && (
+            <motion.header
+              initial={false}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 border-b overflow-hidden"
+              style={{
+                background: 'rgba(245,247,248,0.95)',
+                backdropFilter: 'blur(12px)',
+                borderColor: 'rgba(58,183,214,0.1)',
+              }}
             >
-              <Menu size={20} className="text-neurovoz-dark" />
-            </button>
-            <div>
-              <div className="font-display font-bold text-neurovoz-dark text-base">
-                {getGreeting()}, {guardian?.name?.split(' ')[0] || 'bem-vindo'}! 👋
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setMobileOpen(true)}
+                  className="lg:hidden p-2 rounded-xl hover:bg-white/80 transition-colors"
+                >
+                  <Menu size={20} className="text-neurovoz-dark" />
+                </button>
+                <div>
+                  <div className="font-display font-bold text-neurovoz-dark text-base">
+                    {getGreeting()}, {guardian?.name?.split(' ')[0] || 'bem-vindo'}! 👋
+                  </div>
+                  <div className="text-neurovoz-dark/40 text-xs">
+                    Acompanhando {child?.name || 'a criança'}
+                  </div>
+                </div>
               </div>
-              <div className="text-neurovoz-dark/40 text-xs">
-                Acompanhando {child?.name || 'a criança'}
+
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/dashboard/sos"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
+                  style={{ background: 'linear-gradient(135deg, #F87171, #FB923C)', boxShadow: '0 4px 12px rgba(248,113,113,0.3)' }}
+                >
+                  <AlertTriangle size={12} />
+                  SOS
+                </Link>
+
+                <button className="relative p-2 rounded-xl hover:bg-white/80 transition-colors">
+                  <Bell size={20} className="text-neurovoz-dark/60" />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-neurovoz-turquoise" />
+                </button>
+
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-lg cursor-pointer hover:scale-105 transition-transform"
+                  style={{ background: 'linear-gradient(135deg, rgba(58,183,214,0.15), rgba(132,215,200,0.15))', border: '2px solid rgba(58,183,214,0.3)' }}
+                >
+                  {child?.avatarEmoji || '🌟'}
+                </div>
               </div>
-            </div>
-          </div>
+            </motion.header>
+          )}
+        </AnimatePresence>
 
-          <div className="flex items-center gap-3">
-            {/* SOS Quick Button */}
-            <Link
-              href="/dashboard/sos"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
-              style={{ background: 'linear-gradient(135deg, #F87171, #FB923C)', boxShadow: '0 4px 12px rgba(248,113,113,0.3)' }}
+        {/* Floating voice-mode controls — SOS + Bell + Avatar pinned top-right */}
+        <AnimatePresence>
+          {isVoiceModeActive && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.35, delay: 0.15 }}
+              className="fixed top-5 right-5 z-50 flex items-center gap-3"
             >
-              <AlertTriangle size={12} />
-              SOS
-            </Link>
+              <Link
+                href="/dashboard/sos"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-lg"
+                style={{
+                  background: 'linear-gradient(135deg, #F87171, #FB923C)',
+                  boxShadow: '0 4px 16px rgba(248,113,113,0.5)',
+                }}
+              >
+                <AlertTriangle size={13} />
+                SOS
+              </Link>
 
-            {/* Notification */}
-            <button className="relative p-2 rounded-xl hover:bg-white/80 transition-colors">
-              <Bell size={20} className="text-neurovoz-dark/60" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-neurovoz-turquoise" />
-            </button>
+              <button
+                className="relative w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}
+              >
+                <Bell size={18} className="text-white/80" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-neurovoz-turquoise" />
+              </button>
 
-            {/* Avatar */}
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-lg cursor-pointer hover:scale-105 transition-transform"
-              style={{ background: 'linear-gradient(135deg, rgba(58,183,214,0.15), rgba(132,215,200,0.15))', border: '2px solid rgba(58,183,214,0.3)' }}
-            >
-              {child?.avatarEmoji || '🌟'}
-            </div>
-          </div>
-        </header>
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-lg cursor-pointer hover:scale-105 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.1)', border: '2px solid rgba(255,255,255,0.2)' }}
+              >
+                {child?.avatarEmoji || '🌟'}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className={`flex-1 overflow-auto ${isVoiceModeActive ? 'p-0' : 'p-6'}`}>
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="h-full"
           >
             {children}
           </motion.div>
